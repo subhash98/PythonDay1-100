@@ -1,0 +1,175 @@
+# ==============================================
+
+# CI/CD Pipeline: Move files from cobol-dev
+
+#                 to cobol-prod on every push
+
+# ==============================================
+
+ 
+
+name: Move Files to Prod Repo
+
+ 
+
+# ---- TRIGGER: runs on every push to main ----
+
+on:
+
+  push:
+
+    branches:
+
+      - main
+
+
+jobs:
+
+  transfer-files:
+
+    name: Transfer Changed Files to Prod Repo
+
+    runs-on: ubuntu-latest
+
+
+    steps:
+
+
+
+      # Step 1: Checkout the source repo (cobol-dev)
+
+      - name: Checkout source repo
+
+        uses: actions/checkout@v4
+
+        with:
+
+          fetch-depth: 2  # Need last 2 commits to detect changes
+
+
+
+      # Step 2: Find which files were changed in this push
+
+      - name: Get changed files
+
+        id: changed
+
+        run: |
+
+          echo "=== Files changed in this push ==="
+
+          CHANGED=$(git diff --name-only HEAD~1 HEAD)
+
+          echo "$CHANGED"
+
+          echo "files<> $GITHUB_OUTPUT
+
+          echo "$CHANGED" >> $GITHUB_OUTPUT
+
+          echo "EOF" >> $GITHUB_OUTPUT
+
+
+
+          # Check if any files actually changed
+
+          if [ -z "$CHANGED" ]; then
+
+            echo "No files changed. Skipping transfer."
+
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+
+          else
+
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+
+          fi
+
+
+
+      # Step 3: Clone the destination repo (cobol-prod)
+
+      - name: Clone destination repo
+
+        if: steps.changed.outputs.has_changes == 'true'
+
+        run: |
+
+          git clone https://x-access-token:${{ secrets.TARGET_REPO_PAT }}@github.com/subhash98/subhash98.git ../cobol-prod
+
+
+
+      # Step 4: Copy changed files to destination repo
+
+      - name: Copy changed files
+
+        if: steps.changed.outputs.has_changes == 'true'
+
+        run: |
+
+          echo "=== Copying files to prod repo ==="
+
+          while IFS= read -r file; do
+
+            if [ -f "$file" ]; then
+
+              # Create directory structure in destination
+
+              mkdir -p "../cobol-prod/$(dirname "$file")"
+
+              # Copy the file
+
+              cp "$file" "../cobol-prod/$file"
+
+              echo "  Copied: $file"
+
+            else
+
+              echo "  Skipped (deleted): $file"
+
+            fi
+
+          done <<< "${{ steps.changed.outputs.files }}"
+
+          echo "=== Copy complete ==="
+
+
+
+      # Step 5: Commit and push to destination repo
+
+      - name: Push to destination repo
+
+        if: steps.changed.outputs.has_changes == 'true'
+
+        run: |
+
+          cd ../cobol-prod
+
+          git config user.name "github-actions[bot]"
+
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add .
+
+
+
+          # Only commit if there are actual changes
+
+          if git diff --cached --quiet; then
+
+            echo "No new changes to commit."
+
+          else
+
+            COMMIT_MSG="Auto-sync from cobol-dev @ $(date +'%Y-%m-%d %H:%M:%S')"
+
+            git commit -m "$COMMIT_MSG"
+
+            git push
+
+            echo "==================================="
+
+            echo "  FILES PUSHED TO cobol-prod ✓"
+
+            echo "==================================="
+
+          fi
