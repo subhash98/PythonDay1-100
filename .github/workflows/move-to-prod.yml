@@ -62,7 +62,7 @@ jobs:
 
           echo "$CHANGED"
 
-          echo "files<> $GITHUB_OUTPUT
+          echo "files" >> $GITHUB_OUTPUT
 
           echo "$CHANGED" >> $GITHUB_OUTPUT
 
