@@ -128,7 +128,7 @@ jobs:
 
             fi
 
-          done <<< "${{ steps.changed.outputs.files }}"
+          done 
 
           echo "=== Copy complete ==="
 
